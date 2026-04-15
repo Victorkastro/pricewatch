@@ -1,0 +1,979 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PriceWatch — Análisis de Precios</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0f1e;
+    --surface: #111827;
+    --surface2: #1a2235;
+    --border: #1f2d40;
+    --accent: #3b82f6;
+    --accent2: #6366f1;
+    --text: #e2e8f0;
+    --text-muted: #64748b;
+    --encima: #f87171;
+    --encima-bg: rgba(248,113,113,0.1);
+    --debajo: #34d399;
+    --debajo-bg: rgba(52,211,153,0.1);
+    --similar: #fbbf24;
+    --similar-bg: rgba(251,191,36,0.1);
+    --radius: 12px;
+    --transition: all 0.2s cubic-bezier(.4,0,.2,1);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; min-height: 100vh; }
+
+  .app { display: flex; height: 100vh; overflow: hidden; }
+  .sidebar { width: 240px; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; }
+  .main { flex: 1; overflow-y: auto; }
+
+  .logo { padding: 24px 20px 16px; border-bottom: 1px solid var(--border); }
+  .logo-text { font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 800; background: linear-gradient(135deg, #3b82f6, #6366f1); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+  .logo-sub { font-size: 11px; color: var(--text-muted); letter-spacing: 0.1em; text-transform: uppercase; margin-top: 2px; }
+  
+  nav { padding: 16px 12px; flex: 1; }
+  .nav-group { margin-bottom: 24px; }
+  .nav-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.12em; padding: 0 8px; margin-bottom: 6px; }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 8px; cursor: pointer; font-size: 14px; color: var(--text-muted); transition: var(--transition); margin-bottom: 2px; }
+  .nav-item:hover { background: var(--surface2); color: var(--text); }
+  .nav-item.active { background: linear-gradient(135deg, rgba(59,130,246,0.2), rgba(99,102,241,0.2)); color: var(--accent); border: 1px solid rgba(59,130,246,0.2); }
+  .nav-icon { font-size: 16px; }
+
+  .page-header { padding: 28px 32px 0; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+  .page-title { font-family: 'Syne', sans-serif; font-size: 26px; font-weight: 700; }
+  .page-subtitle { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+  .content { padding: 24px 32px; }
+
+  .cards-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 28px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+  .card-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
+  .card-value { font-family: 'Syne', sans-serif; font-size: 32px; font-weight: 700; }
+  .card-value.encima { color: var(--encima); }
+  .card-value.debajo { color: var(--debajo); }
+  .card-value.similar { color: var(--similar); }
+  .card-value.neutral { color: var(--text); }
+  .card-meta { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+  .badge { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+  .badge.ENCIMA { background: var(--encima-bg); color: var(--encima); }
+  .badge.DEBAJO { background: var(--debajo-bg); color: var(--debajo); }
+  .badge.SIMILAR { background: var(--similar-bg); color: var(--similar); }
+
+  .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .table-toolbar { padding: 16px 20px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+  .search-input { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 8px 14px; border-radius: 8px; font-size: 13px; width: 220px; outline: none; transition: var(--transition); }
+  .search-input:focus { border-color: var(--accent); }
+  .filter-select { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 8px 12px; border-radius: 8px; font-size: 13px; cursor: pointer; outline: none; }
+  
+  /* Advanced filters panel */
+  .filters-advanced { padding: 12px 20px; background: var(--surface2); border-bottom: 1px solid var(--border); display: none; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .filters-advanced.open { display: flex; }
+  .filter-group { display: flex; align-items: center; gap: 6px; }
+  .filter-group label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; white-space: nowrap; }
+  .filter-group input { width: 100px; background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 6px 8px; border-radius: 6px; font-size: 12px; outline: none; }
+  .filter-group input:focus { border-color: var(--accent); }
+  .btn-clear-filters { background: none; border: 1px solid var(--border); color: var(--text-muted); padding: 6px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; transition: var(--transition); }
+  .btn-clear-filters:hover { border-color: var(--encima); color: var(--encima); }
+
+  table { width: 100%; border-collapse: collapse; }
+  thead tr { background: var(--surface2); }
+  th { padding: 12px 16px; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); font-weight: 600; cursor: pointer; user-select: none; white-space: nowrap; }
+  th:hover { color: var(--text); }
+  th .sort-icon { font-size: 10px; margin-left: 4px; }
+  td { padding: 14px 16px; font-size: 13px; border-top: 1px solid var(--border); }
+  tbody tr { transition: var(--transition); cursor: pointer; }
+  tbody tr:hover { background: rgba(255,255,255,0.02); }
+  
+  .price { font-family: 'Syne', sans-serif; font-weight: 600; font-size: 14px; }
+  .diff-positive { color: var(--encima); }
+  .diff-negative { color: var(--debajo); }
+  .diff-neutral { color: var(--similar); }
+
+  .btn { display: inline-flex; align-items: center; gap: 6px; padding: 9px 16px; border-radius: 8px; font-size: 13px; font-weight: 500; cursor: pointer; border: none; transition: var(--transition); }
+  .btn-primary { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: white; }
+  .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+  .btn-secondary { background: var(--surface2); border: 1px solid var(--border); color: var(--text); }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-danger { background: rgba(248,113,113,0.1); border: 1px solid rgba(248,113,113,0.3); color: var(--encima); }
+  .btn-success { background: rgba(52,211,153,0.1); border: 1px solid rgba(52,211,153,0.3); color: var(--debajo); }
+  .btn-sm { padding: 6px 12px; font-size: 12px; }
+  .ml-auto { margin-left: auto; }
+
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); z-index: 100; align-items: center; justify-content: center; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 28px; width: 100%; max-width: 560px; max-height: 90vh; overflow-y: auto; }
+  .modal-title { font-family: 'Syne', sans-serif; font-size: 20px; font-weight: 700; margin-bottom: 20px; }
+  
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .form-grid.full { grid-template-columns: 1fr; }
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+  .form-group.span2 { grid-column: span 2; }
+  label { font-size: 12px; color: var(--text-muted); font-weight: 500; text-transform: uppercase; letter-spacing: 0.06em; }
+  input, select, textarea { background: var(--surface2); border: 1px solid var(--border); color: var(--text); padding: 10px 12px; border-radius: 8px; font-size: 13px; outline: none; transition: var(--transition); font-family: inherit; }
+  input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+  .form-actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px; }
+
+  .detail-panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; margin-bottom: 20px; }
+  .detail-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 20px; }
+  .detail-title { font-family: 'Syne', sans-serif; font-size: 18px; font-weight: 700; }
+  
+  .price-comparison { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin: 16px 0; }
+  .price-box { background: var(--surface2); border-radius: 10px; padding: 14px; text-align: center; }
+  .price-box-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.06em; }
+  .price-box-value { font-family: 'Syne', sans-serif; font-size: 22px; font-weight: 700; margin-top: 4px; }
+
+  .upload-zone { border: 2px dashed var(--border); border-radius: var(--radius); padding: 32px; text-align: center; cursor: pointer; transition: var(--transition); }
+  .upload-zone:hover { border-color: var(--accent); background: rgba(59,130,246,0.03); }
+  .upload-icon { font-size: 36px; margin-bottom: 12px; }
+  .upload-text { font-size: 14px; color: var(--text-muted); }
+  .upload-sub { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+  .section-title { font-family: 'Syne', sans-serif; font-size: 16px; font-weight: 700; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+
+  #toast { position: fixed; bottom: 24px; right: 24px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 18px; font-size: 13px; z-index: 9999; transform: translateY(80px); opacity: 0; transition: all 0.3s ease; }
+  #toast.show { transform: translateY(0); opacity: 1; }
+  #toast.success { border-color: var(--debajo); color: var(--debajo); }
+  #toast.error { border-color: var(--encima); color: var(--encima); }
+
+  .loading { display: flex; align-items: center; justify-content: center; padding: 60px; color: var(--text-muted); }
+  .spinner { width: 24px; height: 24px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; margin-right: 10px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .empty { text-align: center; padding: 48px; color: var(--text-muted); font-size: 14px; }
+
+  .bar-chart { display: flex; flex-direction: column; gap: 10px; }
+  .bar-item { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+  .bar-name { width: 160px; flex-shrink: 0; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bar-track { flex: 1; background: var(--surface2); height: 20px; border-radius: 4px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 4px; display: flex; align-items: center; padding-left: 8px; font-size: 11px; font-weight: 600; transition: width 0.8s ease; }
+  .bar-pct { width: 60px; text-align: right; font-weight: 600; font-size: 12px; }
+
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; background: rgba(99,102,241,0.15); color: var(--accent2); margin-right: 4px; }
+
+  @media (max-width: 768px) {
+    .sidebar { display: none; }
+    .page-header, .content { padding: 16px; }
+    .form-grid { grid-template-columns: 1fr; }
+    .form-group.span2 { grid-column: span 1; }
+    .search-input { width: 100%; }
+    .table-toolbar { flex-direction: column; align-items: stretch; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="logo">
+      <div class="logo-text">PriceWatch</div>
+      <div class="logo-sub">Análisis de Precios</div>
+    </div>
+    <nav>
+      <div class="nav-group">
+        <div class="nav-label">Principal</div>
+        <div class="nav-item active" data-page="dashboard" onclick="showPage('dashboard')">
+          <span class="nav-icon">📊</span> Dashboard
+        </div>
+        <div class="nav-item" data-page="analisis" onclick="showPage('analisis')">
+          <span class="nav-icon">🔍</span> Análisis
+        </div>
+      </div>
+      <div class="nav-group">
+        <div class="nav-label">Gestión</div>
+        <div class="nav-item" data-page="productos" onclick="showPage('productos')">
+          <span class="nav-icon">📦</span> Mis Productos
+        </div>
+        <div class="nav-item" data-page="competidores" onclick="showPage('competidores')">
+          <span class="nav-icon">🏪</span> Competidores
+        </div>
+        <div class="nav-item" data-page="marcas" onclick="showPage('marcas')">
+          <span class="nav-icon">🏷️</span> Marcas
+        </div>
+        <div class="nav-item" data-page="lineas" onclick="showPage('lineas')">
+          <span class="nav-icon">💊</span> Líneas Terapéuticas
+        </div>
+      </div>
+      <div class="nav-group">
+        <div class="nav-label">Datos</div>
+        <div class="nav-item" data-page="importar" onclick="showPage('importar')">
+          <span class="nav-icon">📥</span> Importar Excel
+        </div>
+        <div class="nav-item" onclick="exportarAnalisis()">
+          <span class="nav-icon">📤</span> Exportar
+        </div>
+      </div>
+    </nav>
+  </aside>
+
+  <main class="main" id="main-content"></main>
+</div>
+
+<div class="modal-overlay" id="modal">
+  <div class="modal" id="modal-content"></div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const API = window.location.hostname === 'localhost' ? 'http://localhost:8000' : 'https://pricewatch-api-alux.onrender.com';
+
+let state = { page: 'dashboard', marcas: [], lineas: [], competidores: [], analisisData: [], sortCol: null, sortDir: 'asc' };
+
+function showPage(page) {
+  state.page = page;
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  const nav = document.querySelector(`.nav-item[data-page="${page}"]`);
+  if (nav) nav.classList.add('active');
+  render(page);
+}
+
+function render(page) {
+  const pages = { dashboard: renderDashboard, analisis: renderAnalisis, productos: renderProductos, competidores: renderCompetidores, marcas: renderMarcas, lineas: renderLineas, importar: renderImportar };
+  (pages[page] || renderDashboard)();
+}
+
+async function api(path, opts = {}) {
+  const res = await fetch(API + path, { headers: {'Content-Type': 'application/json'}, ...opts });
+  if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail || 'Error'); }
+  return res.json();
+}
+
+function toast(msg, type = 'success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.className = `show ${type}`;
+  setTimeout(() => t.className = '', 3000);
+}
+
+function setMain(html) { document.getElementById('main-content').innerHTML = html; }
+function closeModal() { document.getElementById('modal').classList.remove('open'); }
+function openModal(html) {
+  document.getElementById('modal-content').innerHTML = html;
+  document.getElementById('modal').classList.add('open');
+}
+document.getElementById('modal').addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(); });
+
+function fmt(n) { if (n == null) return '—'; return new Intl.NumberFormat('es-DO', {style:'currency', currency:'DOP', minimumFractionDigits:2}).format(n); }
+function fmtPct(n) { if (n == null) return '—'; const s = n >= 0 ? '+' : ''; return `${s}${parseFloat(n).toFixed(1)}%`; }
+function badgeHtml(estado) {
+  const icons = { ENCIMA: '▲', DEBAJO: '▼', SIMILAR: '≈' };
+  return `<span class="badge ${estado}">${icons[estado] || ''} ${estado}</span>`;
+}
+function diffClass(pct) { if (!pct) return ''; return pct > 5 ? 'diff-positive' : pct < -5 ? 'diff-negative' : 'diff-neutral'; }
+
+// ── Dashboard ─────────────────────────────────────────────────────────────
+async function renderDashboard() {
+  setMain(`<div class="loading"><div class="spinner"></div> Cargando dashboard...</div>`);
+  const d = await api('/api/dashboard').catch(() => null);
+  if (!d) { setMain(`<div class="empty">⚠️ No se pudo conectar con el servidor</div>`); return; }
+
+  const total = (d.encima || 0) + (d.debajo || 0) + (d.similar || 0);
+  const pctEncima = total ? Math.round((d.encima/total)*100) : 0;
+  const pctDebajo = total ? Math.round((d.debajo/total)*100) : 0;
+  const pctSimilar = total ? Math.round((d.similar/total)*100) : 0;
+
+  setMain(`
+  <div class="page-header">
+    <div>
+      <div class="page-title">Dashboard</div>
+      <div class="page-subtitle">Resumen general de precios vs competencia</div>
+    </div>
+    <button class="btn btn-primary" onclick="showPage('importar')">📥 Importar Excel</button>
+  </div>
+  <div class="content">
+    <div class="cards-grid">
+      <div class="card">
+        <div class="card-label">Total Productos</div>
+        <div class="card-value neutral">${d.total_productos}</div>
+        <div class="card-meta">activos</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Competidores</div>
+        <div class="card-value neutral">${d.total_competidores}</div>
+        <div class="card-meta">registrados</div>
+      </div>
+      <div class="card">
+        <div class="card-label">▲ Por Encima</div>
+        <div class="card-value encima">${d.encima}</div>
+        <div class="card-meta">${pctEncima}% del total</div>
+      </div>
+      <div class="card">
+        <div class="card-label">▼ Por Debajo</div>
+        <div class="card-value debajo">${d.debajo}</div>
+        <div class="card-meta">${pctDebajo}% del total</div>
+      </div>
+      <div class="card">
+        <div class="card-label">≈ Similar</div>
+        <div class="card-value similar">${d.similar}</div>
+        <div class="card-meta">${pctSimilar}% del total</div>
+      </div>
+      <div class="card">
+        <div class="card-label">Sin Datos</div>
+        <div class="card-value" style="color:var(--text-muted)">${d.sin_datos}</div>
+        <div class="card-meta">sin comparativa</div>
+      </div>
+    </div>
+
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
+      <div class="detail-panel">
+        <div class="section-title">📊 Distribución de precios</div>
+        ${total > 0 ? `
+        <div style="display:flex; gap:4px; height:32px; border-radius:8px; overflow:hidden; margin-bottom:20px;">
+          ${pctEncima > 0 ? `<div style="width:${pctEncima}%;background:var(--encima);opacity:0.8;transition:width 0.8s ease;"></div>` : ''}
+          ${pctSimilar > 0 ? `<div style="width:${pctSimilar}%;background:var(--similar);opacity:0.8;transition:width 0.8s ease;"></div>` : ''}
+          ${pctDebajo > 0 ? `<div style="width:${pctDebajo}%;background:var(--debajo);opacity:0.8;transition:width 0.8s ease;"></div>` : ''}
+        </div>
+        <div style="display:flex; gap:16px; font-size:12px;">
+          <div><span style="color:var(--encima)">▲ Encima</span>: ${pctEncima}%</div>
+          <div><span style="color:var(--similar)">≈ Similar</span>: ${pctSimilar}%</div>
+          <div><span style="color:var(--debajo)">▼ Debajo</span>: ${pctDebajo}%</div>
+        </div>` : '<div style="color:var(--text-muted);font-size:13px;">No hay datos de competencia aún</div>'}
+      </div>
+
+      <div class="detail-panel">
+        <div class="section-title">🎯 Mayor diferencia de precio</div>
+        ${d.top_diferencias?.length ? `
+        <div class="bar-chart">
+          ${d.top_diferencias.map(p => `
+          <div class="bar-item">
+            <div class="bar-name" title="${p.producto}">${p.producto}</div>
+            <div class="bar-track">
+              <div class="bar-fill" style="width:${Math.min(Math.abs(p.diff_porcentaje_promedio),100)}%;background:${p.estado_precio==='ENCIMA'?'var(--encima)':p.estado_precio==='DEBAJO'?'var(--debajo)':'var(--similar)'}">
+              </div>
+            </div>
+            <div class="bar-pct ${diffClass(p.diff_porcentaje_promedio)}">${fmtPct(p.diff_porcentaje_promedio)}</div>
+          </div>`).join('')}
+        </div>` : '<div style="color:var(--text-muted);font-size:13px;">Sin datos</div>'}
+      </div>
+    </div>
+
+    <div class="detail-panel" style="margin-top:20px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+        <div class="section-title" style="margin:0">🔍 Vista rápida</div>
+        <button class="btn btn-secondary btn-sm" onclick="showPage('analisis')">Ver análisis completo →</button>
+      </div>
+      <div id="quick-table"><div class="loading"><div class="spinner"></div></div></div>
+    </div>
+  </div>`);
+
+  const items = await api('/api/analisis').catch(() => []);
+  const limited = items.slice(0, 6);
+  document.getElementById('quick-table').innerHTML = limited.length ? `
+  <table><thead><tr><th>Producto</th><th>Marca</th><th>Línea</th><th>Nuestro Precio</th><th>Prom. Comp.</th><th>Diferencia</th><th>Estado</th></tr></thead>
+  <tbody>${limited.map(p => `
+    <tr onclick="showPage('analisis')">
+      <td><div style="font-weight:500">${p.producto}</div><div style="font-size:11px;color:var(--text-muted)">${p.codigo}</div></td>
+      <td style="font-size:12px">${p.marca ? `<span class="tag">${p.marca}</span>` : '—'}</td>
+      <td style="font-size:12px;color:var(--text-muted)">${p.linea_terapeutica || '—'}</td>
+      <td class="price">${fmt(p.nuestro_precio)}</td>
+      <td class="price">${fmt(p.precio_promedio_competencia)}</td>
+      <td class="price ${diffClass(p.diff_porcentaje_promedio)}">${fmtPct(p.diff_porcentaje_promedio)}</td>
+      <td>${badgeHtml(p.estado_precio)}</td>
+    </tr>`).join('')}
+  </tbody></table>` : '<div class="empty">No hay datos de comparativa aún. Importa precios de la competencia.</div>';
+}
+
+// ── Análisis (con filtros avanzados) ──────────────────────────────────────
+async function renderAnalisis() {
+  setMain(`<div class="loading"><div class="spinner"></div> Cargando análisis...</div>`);
+  const [items, marcas, lineas] = await Promise.all([api('/api/analisis'), api('/api/marcas'), api('/api/lineas-terapeuticas')]).catch(() => [[],[],[]]);
+  state.analisisData = items;
+  state.marcas = marcas;
+  state.lineas = lineas;
+  state.sortCol = null;
+
+  setMain(`
+  <div class="page-header">
+    <div>
+      <div class="page-title">Análisis de Precios</div>
+      <div class="page-subtitle">${items.length} productos con datos de competencia</div>
+    </div>
+    <button class="btn btn-success" onclick="exportarAnalisisFiltered()">📤 Exportar Excel</button>
+  </div>
+  <div class="content">
+    <div class="table-wrap">
+      <div class="table-toolbar">
+        <input class="search-input" placeholder="🔍 Buscar producto, marca, línea..." oninput="applyAnalisisFilters()" id="search-analisis">
+        <select class="filter-select" onchange="applyAnalisisFilters()" id="filter-estado">
+          <option value="">Todos los estados</option>
+          <option value="ENCIMA">▲ Por Encima</option>
+          <option value="SIMILAR">≈ Similar</option>
+          <option value="DEBAJO">▼ Por Debajo</option>
+        </select>
+        <select class="filter-select" onchange="applyAnalisisFilters()" id="filter-marca">
+          <option value="">Todas las marcas</option>
+          ${marcas.map(m => `<option value="${m.nombre}">${m.nombre}</option>`).join('')}
+        </select>
+        <select class="filter-select" onchange="applyAnalisisFilters()" id="filter-linea">
+          <option value="">Todas las líneas</option>
+          ${lineas.map(l => `<option value="${l.nombre}">${l.nombre}</option>`).join('')}
+        </select>
+        <button class="btn btn-secondary btn-sm" onclick="toggleAdvancedFilters()">⚙️ Más filtros</button>
+      </div>
+      <div class="filters-advanced" id="advanced-filters">
+        <div class="filter-group">
+          <label>Precio mín:</label>
+          <input type="number" id="af-precio-min" placeholder="0" oninput="applyAnalisisFilters()">
+        </div>
+        <div class="filter-group">
+          <label>Precio máx:</label>
+          <input type="number" id="af-precio-max" placeholder="999999" oninput="applyAnalisisFilters()">
+        </div>
+        <div class="filter-group">
+          <label>Dif. % mín:</label>
+          <input type="number" id="af-diff-min" placeholder="-100" oninput="applyAnalisisFilters()">
+        </div>
+        <div class="filter-group">
+          <label>Dif. % máx:</label>
+          <input type="number" id="af-diff-max" placeholder="100" oninput="applyAnalisisFilters()">
+        </div>
+        <div class="filter-group">
+          <label>Competidores mín:</label>
+          <input type="number" id="af-comp-min" placeholder="1" oninput="applyAnalisisFilters()">
+        </div>
+        <button class="btn-clear-filters" onclick="clearAdvancedFilters()">✕ Limpiar filtros</button>
+      </div>
+      <div id="analisis-table"></div>
+    </div>
+  </div>`);
+
+  renderAnalisisTable(items);
+}
+
+function toggleAdvancedFilters() {
+  document.getElementById('advanced-filters').classList.toggle('open');
+}
+
+function clearAdvancedFilters() {
+  ['af-precio-min','af-precio-max','af-diff-min','af-diff-max','af-comp-min'].forEach(id => {
+    const el = document.getElementById(id); if(el) el.value = '';
+  });
+  applyAnalisisFilters();
+}
+
+function applyAnalisisFilters() {
+  let data = state.analisisData || [];
+  const q = (document.getElementById('search-analisis')?.value || '').toLowerCase();
+  const estado = document.getElementById('filter-estado')?.value;
+  const marca = document.getElementById('filter-marca')?.value;
+  const linea = document.getElementById('filter-linea')?.value;
+  const precioMin = parseFloat(document.getElementById('af-precio-min')?.value);
+  const precioMax = parseFloat(document.getElementById('af-precio-max')?.value);
+  const diffMin = parseFloat(document.getElementById('af-diff-min')?.value);
+  const diffMax = parseFloat(document.getElementById('af-diff-max')?.value);
+  const compMin = parseInt(document.getElementById('af-comp-min')?.value);
+
+  if (q) data = data.filter(p => 
+    p.producto.toLowerCase().includes(q) || 
+    p.codigo.toLowerCase().includes(q) ||
+    (p.marca || '').toLowerCase().includes(q) ||
+    (p.linea_terapeutica || '').toLowerCase().includes(q)
+  );
+  if (estado) data = data.filter(p => p.estado_precio === estado);
+  if (marca) data = data.filter(p => p.marca === marca);
+  if (linea) data = data.filter(p => p.linea_terapeutica === linea);
+  if (!isNaN(precioMin)) data = data.filter(p => p.nuestro_precio >= precioMin);
+  if (!isNaN(precioMax)) data = data.filter(p => p.nuestro_precio <= precioMax);
+  if (!isNaN(diffMin)) data = data.filter(p => p.diff_porcentaje_promedio >= diffMin);
+  if (!isNaN(diffMax)) data = data.filter(p => p.diff_porcentaje_promedio <= diffMax);
+  if (!isNaN(compMin)) data = data.filter(p => p.num_competidores >= compMin);
+
+  renderAnalisisTable(data);
+}
+
+function sortAnalisis(col) {
+  if (state.sortCol === col) {
+    state.sortDir = state.sortDir === 'asc' ? 'desc' : 'asc';
+  } else {
+    state.sortCol = col;
+    state.sortDir = 'asc';
+  }
+  applyAnalisisFilters();
+}
+
+function renderAnalisisTable(data) {
+  const el = document.getElementById('analisis-table');
+  if (!el) return;
+  if (!data.length) { el.innerHTML = '<div class="empty">No hay productos que coincidan con los filtros</div>'; return; }
+
+  // Apply sorting
+  if (state.sortCol) {
+    data = [...data].sort((a, b) => {
+      let va = a[state.sortCol], vb = b[state.sortCol];
+      if (va == null) va = '';
+      if (vb == null) vb = '';
+      if (typeof va === 'number' && typeof vb === 'number') return state.sortDir === 'asc' ? va - vb : vb - va;
+      return state.sortDir === 'asc' ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va));
+    });
+  }
+
+  const sortIcon = (col) => state.sortCol === col ? (state.sortDir === 'asc' ? '↑' : '↓') : '';
+
+  el.innerHTML = `<table>
+    <thead><tr>
+      <th onclick="sortAnalisis('producto')">Producto <span class="sort-icon">${sortIcon('producto')}</span></th>
+      <th onclick="sortAnalisis('marca')">Marca <span class="sort-icon">${sortIcon('marca')}</span></th>
+      <th onclick="sortAnalisis('linea_terapeutica')">Línea Terap. <span class="sort-icon">${sortIcon('linea_terapeutica')}</span></th>
+      <th onclick="sortAnalisis('nuestro_precio')">Nuestro Precio <span class="sort-icon">${sortIcon('nuestro_precio')}</span></th>
+      <th onclick="sortAnalisis('precio_minimo_competencia')">Mín. Comp. <span class="sort-icon">${sortIcon('precio_minimo_competencia')}</span></th>
+      <th onclick="sortAnalisis('precio_promedio_competencia')">Prom. Comp. <span class="sort-icon">${sortIcon('precio_promedio_competencia')}</span></th>
+      <th onclick="sortAnalisis('precio_maximo_competencia')">Máx. Comp. <span class="sort-icon">${sortIcon('precio_maximo_competencia')}</span></th>
+      <th onclick="sortAnalisis('diff_porcentaje_promedio')">Diferencia <span class="sort-icon">${sortIcon('diff_porcentaje_promedio')}</span></th>
+      <th onclick="sortAnalisis('num_competidores')">Comp. <span class="sort-icon">${sortIcon('num_competidores')}</span></th>
+      <th onclick="sortAnalisis('estado_precio')">Estado <span class="sort-icon">${sortIcon('estado_precio')}</span></th>
+    </tr></thead>
+    <tbody>
+    ${data.map(p => `
+    <tr onclick="verDetalle(${p.id})">
+      <td><div style="font-weight:500">${p.producto}</div><div style="font-size:11px;color:var(--text-muted)">${p.codigo}</div></td>
+      <td>${p.marca ? `<span class="tag">${p.marca}</span>` : '—'}</td>
+      <td style="font-size:12px;color:var(--text-muted)">${p.linea_terapeutica || '—'}</td>
+      <td class="price">${fmt(p.nuestro_precio)}</td>
+      <td class="price" style="color:var(--debajo)">${fmt(p.precio_minimo_competencia)}</td>
+      <td class="price">${fmt(p.precio_promedio_competencia)}</td>
+      <td class="price" style="color:var(--encima)">${fmt(p.precio_maximo_competencia)}</td>
+      <td class="price ${diffClass(p.diff_porcentaje_promedio)}">${fmtPct(p.diff_porcentaje_promedio)}</td>
+      <td style="text-align:center;font-size:12px">${p.num_competidores}</td>
+      <td>${badgeHtml(p.estado_precio)}</td>
+    </tr>`).join('')}
+    </tbody></table>`;
+}
+
+async function verDetalle(id) {
+  const d = await api(`/api/analisis/detalle/${id}`).catch(() => null);
+  if (!d) return;
+  const p = d.producto;
+  const comp = d.competencia;
+  openModal(`
+    <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px;">
+      <div>
+        <div class="modal-title">${p.nombre}</div>
+        <div style="font-size:12px;color:var(--text-muted)">${p.codigo} · ${p.marca_nombre ? `<span class="tag">${p.marca_nombre}</span>` : 'Sin marca'} · ${p.linea_terapeutica_nombre || 'Sin línea terapéutica'}</div>
+      </div>
+      <button onclick="closeModal()" style="background:none;border:none;color:var(--text-muted);font-size:20px;cursor:pointer">✕</button>
+    </div>
+    
+    <div class="price-comparison">
+      <div class="price-box">
+        <div class="price-box-label">Nuestro Precio</div>
+        <div class="price-box-value" style="color:var(--accent)">${fmt(p.precio_actual)}</div>
+      </div>
+      <div class="price-box">
+        <div class="price-box-label">Costo</div>
+        <div class="price-box-value">${fmt(p.costo)}</div>
+      </div>
+      <div class="price-box">
+        <div class="price-box-label">Margen</div>
+        <div class="price-box-value" style="color:var(--debajo)">${p.costo ? fmtPct(((p.precio_actual-p.costo)/p.costo)*100) : '—'}</div>
+      </div>
+    </div>
+
+    <div class="section-title" style="margin-top:16px;">Precios de la Competencia</div>
+    ${comp.length ? `<table style="width:100%">
+      <thead><tr><th>Competidor</th><th>Precio</th><th>Diferencia</th><th>Estado</th><th>Fecha</th></tr></thead>
+      <tbody>${comp.map(c => `
+        <tr>
+          <td>${c.competidor}</td>
+          <td class="price">${fmt(c.precio)}</td>
+          <td class="price ${diffClass(c.diff_pct)}">${fmtPct(c.diff_pct)}</td>
+          <td>${badgeHtml(c.estado)}</td>
+          <td style="font-size:11px;color:var(--text-muted)">${c.fecha_registro || '—'}</td>
+        </tr>`).join('')}
+      </tbody></table>` : '<div style="color:var(--text-muted);font-size:13px;padding:12px 0">No hay precios de competencia registrados</div>'}
+    
+    <div class="form-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Cerrar</button>
+      <button class="btn btn-primary" onclick="closeModal();modalAgregarPrecio(${p.id},'${p.nombre.replace(/'/g,"\\'")}')">+ Agregar precio</button>
+    </div>`);
+}
+
+// ── Productos ─────────────────────────────────────────────────────────────
+async function renderProductos() {
+  setMain(`<div class="loading"><div class="spinner"></div></div>`);
+  const [prods, marcas, lineas] = await Promise.all([api('/api/productos'), api('/api/marcas'), api('/api/lineas-terapeuticas')]).catch(() => [[],[],[]]);
+  state.marcas = marcas;
+  state.lineas = lineas;
+  state.prodsData = prods;
+
+  setMain(`
+  <div class="page-header">
+    <div><div class="page-title">Mis Productos</div><div class="page-subtitle">${prods.length} productos registrados</div></div>
+    <button class="btn btn-primary" onclick="modalProducto()">+ Nuevo Producto</button>
+  </div>
+  <div class="content">
+    <div class="table-wrap">
+      <div class="table-toolbar">
+        <input class="search-input" placeholder="🔍 Buscar..." oninput="filtrarProds(this.value)">
+        <select class="filter-select" onchange="filtrarProds()" id="prod-filter-marca">
+          <option value="">Todas las marcas</option>
+          ${marcas.map(m => `<option value="${m.nombre}">${m.nombre}</option>`).join('')}
+        </select>
+        <select class="filter-select" onchange="filtrarProds()" id="prod-filter-linea">
+          <option value="">Todas las líneas</option>
+          ${lineas.map(l => `<option value="${l.nombre}">${l.nombre}</option>`).join('')}
+        </select>
+      </div>
+      <div id="prods-table"></div>
+    </div>
+  </div>`);
+
+  renderProdsTable(prods);
+}
+
+function renderProdsTable(data) {
+  const el = document.getElementById('prods-table');
+  if (!el) return;
+  if (!data.length) { el.innerHTML = '<div class="empty">No hay productos. Crea uno o importa desde Excel.</div>'; return; }
+  el.innerHTML = `<table>
+    <thead><tr><th>Código</th><th>Producto</th><th>Marca</th><th>Línea Terap.</th><th>Precio Actual</th><th>Costo</th><th>Margen</th><th>Acciones</th></tr></thead>
+    <tbody>${data.map(p => `
+    <tr>
+      <td style="font-family:monospace;font-size:12px;color:var(--text-muted)">${p.codigo}</td>
+      <td><div style="font-weight:500">${p.nombre}</div>${p.descripcion?`<div style="font-size:11px;color:var(--text-muted)">${p.descripcion.substring(0,50)}</div>`:''}</td>
+      <td>${p.marca_nombre ? `<span class="tag">${p.marca_nombre}</span>` : '—'}</td>
+      <td style="font-size:12px;color:var(--text-muted)">${p.linea_terapeutica_nombre || '—'}</td>
+      <td class="price" style="color:var(--accent)">${fmt(p.precio_actual)}</td>
+      <td class="price">${fmt(p.costo)}</td>
+      <td class="${p.costo ? (((p.precio_actual-p.costo)/p.costo)*100 > 20 ? 'diff-negative' : 'diff-positive') : ''}">${p.costo ? fmtPct(((p.precio_actual-p.costo)/p.costo)*100) : '—'}</td>
+      <td style="display:flex;gap:6px">
+        <button class="btn btn-secondary btn-sm" onclick="modalProducto(${JSON.stringify(p).replace(/"/g,'&quot;')})">✏️</button>
+        <button class="btn btn-danger btn-sm" onclick="eliminarProducto(${p.id})">🗑️</button>
+      </td>
+    </tr>`).join('')}
+    </tbody></table>`;
+}
+
+function filtrarProds(q) {
+  let data = state.prodsData || [];
+  const search = (q || document.querySelector('.search-input')?.value || '').toLowerCase();
+  const marca = document.getElementById('prod-filter-marca')?.value;
+  const linea = document.getElementById('prod-filter-linea')?.value;
+  
+  if (search) data = data.filter(p => p.nombre.toLowerCase().includes(search) || p.codigo.toLowerCase().includes(search));
+  if (marca) data = data.filter(p => p.marca_nombre === marca);
+  if (linea) data = data.filter(p => p.linea_terapeutica_nombre === linea);
+  renderProdsTable(data);
+}
+
+function modalProducto(p = null) {
+  const marcas = state.marcas || [];
+  const lineas = state.lineas || [];
+  openModal(`
+    <div class="modal-title">${p ? 'Editar Producto' : 'Nuevo Producto'}</div>
+    <div class="form-grid">
+      <div class="form-group"><label>Código *</label><input id="f-codigo" value="${p?.codigo || ''}" placeholder="PROD-001" ${p ? 'readonly style="opacity:0.6"' : ''}></div>
+      <div class="form-group"><label>Unidad</label><input id="f-unidad" value="${p?.unidad || 'unidad'}" placeholder="unidad"></div>
+      <div class="form-group span2"><label>Nombre *</label><input id="f-nombre" value="${p?.nombre || ''}" placeholder="Nombre del producto"></div>
+      <div class="form-group span2"><label>Descripción</label><input id="f-desc" value="${p?.descripcion || ''}" placeholder="Descripción opcional"></div>
+      <div class="form-group"><label>Precio Actual *</label><input id="f-precio" type="number" step="0.01" value="${p?.precio_actual || ''}" placeholder="0.00"></div>
+      <div class="form-group"><label>Costo</label><input id="f-costo" type="number" step="0.01" value="${p?.costo || ''}" placeholder="0.00"></div>
+      <div class="form-group"><label>Marca</label>
+        <select id="f-marca">
+          <option value="">Sin marca</option>
+          ${marcas.map(m => `<option value="${m.id}" ${p?.marca_id == m.id ? 'selected' : ''}>${m.nombre}</option>`).join('')}
+        </select>
+      </div>
+      <div class="form-group"><label>Línea Terapéutica</label>
+        <select id="f-linea">
+          <option value="">Sin línea</option>
+          ${lineas.map(l => `<option value="${l.id}" ${p?.linea_terapeutica_id == l.id ? 'selected' : ''}>${l.nombre}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarProducto(${p?.id || 'null'})">💾 Guardar</button>
+    </div>`);
+}
+
+async function guardarProducto(id) {
+  const data = {
+    codigo: document.getElementById('f-codigo').value.trim(),
+    nombre: document.getElementById('f-nombre').value.trim(),
+    descripcion: document.getElementById('f-desc').value.trim() || null,
+    precio_actual: parseFloat(document.getElementById('f-precio').value),
+    costo: parseFloat(document.getElementById('f-costo').value) || null,
+    unidad: document.getElementById('f-unidad').value.trim() || 'unidad',
+    marca_id: parseInt(document.getElementById('f-marca').value) || null,
+    linea_terapeutica_id: parseInt(document.getElementById('f-linea').value) || null
+  };
+  if (!data.codigo || !data.nombre || !data.precio_actual) { toast('Completa los campos requeridos', 'error'); return; }
+  try {
+    if (id) { await api(`/api/productos/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
+    else { await api('/api/productos', { method: 'POST', body: JSON.stringify(data) }); }
+    toast(id ? 'Producto actualizado ✓' : 'Producto creado ✓');
+    closeModal(); renderProductos();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function eliminarProducto(id) {
+  if (!confirm('¿Eliminar este producto?')) return;
+  try { await api(`/api/productos/${id}`, {method:'DELETE'}); toast('Producto eliminado'); renderProductos(); }
+  catch(e) { toast(e.message, 'error'); }
+}
+
+// ── Competidores ──────────────────────────────────────────────────────────
+async function renderCompetidores() {
+  const comps = await api('/api/competidores').catch(() => []);
+  setMain(`
+  <div class="page-header">
+    <div><div class="page-title">Competidores</div><div class="page-subtitle">${comps.length} competidores activos</div></div>
+    <button class="btn btn-primary" onclick="modalCompetidor()">+ Nuevo</button>
+  </div>
+  <div class="content">
+    <div class="table-wrap">
+      <table><thead><tr><th>Nombre</th><th>URL Web</th><th>Estado</th><th>Acciones</th></tr></thead>
+      <tbody>${comps.map(c => `
+      <tr>
+        <td style="font-weight:500">${c.nombre}</td>
+        <td><a href="${c.url_web || '#'}" target="_blank" style="color:var(--accent);font-size:12px">${c.url_web || '—'}</a></td>
+        <td><span class="badge DEBAJO">● Activo</span></td>
+        <td><button class="btn btn-secondary btn-sm" onclick="modalCompetidor(${JSON.stringify(c).replace(/"/g,'&quot;')})">✏️ Editar</button></td>
+      </tr>`).join('')}
+      </tbody></table>
+    </div>
+  </div>`);
+}
+
+function modalCompetidor(c = null) {
+  openModal(`
+    <div class="modal-title">${c ? 'Editar Competidor' : 'Nuevo Competidor'}</div>
+    <div class="form-grid full">
+      <div class="form-group"><label>Nombre *</label><input id="c-nombre" value="${c?.nombre || ''}" placeholder="Nombre del competidor"></div>
+      <div class="form-group"><label>URL Web</label><input id="c-url" value="${c?.url_web || ''}" placeholder="https://ejemplo.com"></div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarCompetidor(${c?.id || 'null'})">💾 Guardar</button>
+    </div>`);
+}
+
+async function guardarCompetidor(id) {
+  const data = { nombre: document.getElementById('c-nombre').value.trim(), url_web: document.getElementById('c-url').value.trim() || null };
+  if (!data.nombre) { toast('El nombre es requerido', 'error'); return; }
+  try {
+    await api('/api/competidores', {method:'POST', body:JSON.stringify(data)});
+    toast('Competidor guardado ✓'); closeModal(); renderCompetidores();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+// ── Marcas ────────────────────────────────────────────────────────────────
+async function renderMarcas() {
+  const marcas = await api('/api/marcas').catch(() => []);
+  setMain(`
+  <div class="page-header">
+    <div><div class="page-title">Marcas</div></div>
+    <button class="btn btn-primary" onclick="modalMarca()">+ Nueva</button>
+  </div>
+  <div class="content">
+    <div class="table-wrap">
+      <table><thead><tr><th>Nombre</th><th>Descripción</th><th>Acciones</th></tr></thead>
+      <tbody>${marcas.map(m => `
+      <tr><td style="font-weight:500">${m.nombre}</td><td style="color:var(--text-muted);font-size:13px">${m.descripcion || '—'}</td>
+      <td><button class="btn btn-secondary btn-sm" onclick="modalMarca(${JSON.stringify(m).replace(/"/g,'&quot;')})">✏️</button></td></tr>
+      `).join('')}</tbody></table>
+    </div>
+  </div>`);
+}
+
+function modalMarca(m = null) {
+  openModal(`
+    <div class="modal-title">${m ? 'Editar Marca' : 'Nueva Marca'}</div>
+    <div class="form-grid full">
+      <div class="form-group"><label>Nombre *</label><input id="marca-nombre" value="${m?.nombre || ''}" placeholder="Ej: Bayer"></div>
+      <div class="form-group"><label>Descripción</label><input id="marca-desc" value="${m?.descripcion || ''}" placeholder="Descripción opcional"></div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarMarca()">💾 Guardar</button>
+    </div>`);
+}
+
+async function guardarMarca() {
+  const data = { nombre: document.getElementById('marca-nombre').value.trim(), descripcion: document.getElementById('marca-desc').value.trim() || null };
+  if (!data.nombre) { toast('El nombre es requerido', 'error'); return; }
+  try { await api('/api/marcas', {method:'POST', body:JSON.stringify(data)}); toast('Marca guardada ✓'); closeModal(); renderMarcas(); }
+  catch(e) { toast(e.message, 'error'); }
+}
+
+// ── Líneas Terapéuticas ──────────────────────────────────────────────────
+async function renderLineas() {
+  const lineas = await api('/api/lineas-terapeuticas').catch(() => []);
+  setMain(`
+  <div class="page-header">
+    <div><div class="page-title">Líneas Terapéuticas</div></div>
+    <button class="btn btn-primary" onclick="modalLinea()">+ Nueva</button>
+  </div>
+  <div class="content">
+    <div class="table-wrap">
+      <table><thead><tr><th>Nombre</th><th>Descripción</th><th>Acciones</th></tr></thead>
+      <tbody>${lineas.map(l => `
+      <tr><td style="font-weight:500">${l.nombre}</td><td style="color:var(--text-muted);font-size:13px">${l.descripcion || '—'}</td>
+      <td><button class="btn btn-secondary btn-sm" onclick="modalLinea(${JSON.stringify(l).replace(/"/g,'&quot;')})">✏️</button></td></tr>
+      `).join('')}</tbody></table>
+    </div>
+  </div>`);
+}
+
+function modalLinea(l = null) {
+  openModal(`
+    <div class="modal-title">${l ? 'Editar Línea Terapéutica' : 'Nueva Línea Terapéutica'}</div>
+    <div class="form-grid full">
+      <div class="form-group"><label>Nombre *</label><input id="lt-nombre" value="${l?.nombre || ''}" placeholder="Ej: Analgésicos"></div>
+      <div class="form-group"><label>Descripción</label><input id="lt-desc" value="${l?.descripcion || ''}" placeholder="Descripción opcional"></div>
+    </div>
+    <div class="form-actions">
+      <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarLinea()">💾 Guardar</button>
+    </div>`);
+}
+
+async function guardarLinea() {
+  const data = { nombre: document.getElementById('lt-nombre').value.trim(), descripcion: document.getElementById('lt-desc').value.trim() || null };
+  if (!data.nombre) { toast('El nombre es requerido', 'error'); return; }
+  try { await api('/api/lineas-terapeuticas', {method:'POST', body:JSON.stringify(data)}); toast('Línea terapéutica guardada ✓'); closeModal(); renderLineas(); }
+  catch(e) { toast(e.message, 'error'); }
+}
+
+// ── Importar ──────────────────────────────────────────────────────────────
+function renderImportar() {
+  setMain(`
+  <div class="page-header">
+    <div><div class="page-title">Importar desde Excel</div><div class="page-subtitle">Actualiza tus datos masivamente</div></div>
+  </div>
+  <div class="content">
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:20px;">
+      <div class="detail-panel">
+        <div class="section-title">📦 Importar Mis Productos</div>
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px">Sube un archivo Excel con tus productos. Actualiza precios en masa.</p>
+        <div style="background:var(--surface2);border-radius:8px;padding:12px;margin-bottom:16px;font-size:12px;color:var(--text-muted)">
+          <div style="font-weight:600;color:var(--text);margin-bottom:6px">Columnas del Excel:</div>
+          <div>✅ <b>codigo</b> · <b>nombre</b> · <b>precio_actual</b> (requeridas)</div>
+          <div>☑️ descripcion · costo · unidad · <b>marca</b> · <b>linea_terapeutica</b> (opcionales)</div>
+        </div>
+        <div class="upload-zone" onclick="document.getElementById('file-prods').click()">
+          <div class="upload-icon">📊</div>
+          <div class="upload-text">Haz clic para seleccionar archivo</div>
+          <div class="upload-sub">.xlsx o .xls</div>
+        </div>
+        <input type="file" id="file-prods" accept=".xlsx,.xls" style="display:none" onchange="importar('productos', this)">
+        <div id="result-prods"></div>
+        <div style="margin-top:14px;display:flex;gap:8px">
+          <button class="btn btn-secondary btn-sm" onclick="descargarPlantilla('plantilla-productos')">⬇️ Plantilla Excel</button>
+        </div>
+      </div>
+
+      <div class="detail-panel">
+        <div class="section-title">🏪 Importar Precios Competencia</div>
+        <p style="font-size:13px;color:var(--text-muted);margin-bottom:16px">Sube un Excel con los precios que relevaste de la competencia.</p>
+        <div style="background:var(--surface2);border-radius:8px;padding:12px;margin-bottom:16px;font-size:12px;color:var(--text-muted)">
+          <div style="font-weight:600;color:var(--text);margin-bottom:6px">Columnas del Excel:</div>
+          <div>✅ <b>codigo_producto</b> · <b>competidor</b> · <b>precio</b> (requeridas)</div>
+          <div>☑️ fecha · url_producto · notas (opcionales)</div>
+        </div>
+        <div class="upload-zone" onclick="document.getElementById('file-comp').click()">
+          <div class="upload-icon">🏷️</div>
+          <div class="upload-text">Haz clic para seleccionar archivo</div>
+          <div class="upload-sub">.xlsx o .xls</div>
+        </div>
+        <input type="file" id="file-comp" accept=".xlsx,.xls" style="display:none" onchange="importar('competencia', this)">
+        <div id="result-comp"></div>
+        <div style="margin-top:14px;display:flex;gap:8px">
+          <button class="btn btn-secondary btn-sm" onclick="descargarPlantilla('plantilla-competencia')">⬇️ Plantilla Excel</button>
+        </div>
+      </div>
+    </div>
+  </div>`);
+}
+
+async function importar(tipo, input) {
+  const file = input.files[0];
+  if (!file) return;
+  const resultId = `result-${tipo === 'productos' ? 'prods' : 'comp'}`;
+  document.getElementById(resultId).innerHTML = `<div style="padding:12px;color:var(--text-muted);font-size:13px">⏳ Importando ${file.name}...</div>`;
+  
+  const form = new FormData();
+  form.append('file', file);
+  try {
+    const res = await fetch(`${API}/api/importar/${tipo}`, {method:'POST', body: form});
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || 'Error');
+    document.getElementById(resultId).innerHTML = `
+      <div style="margin-top:12px;padding:14px;background:var(--debajo-bg);border:1px solid var(--debajo);border-radius:8px;font-size:13px;">
+        ✅ <b>${data.importados}</b> registros importados correctamente${data.errores > 0 ? ` · ⚠️ ${data.errores} errores` : ''}
+      </div>`;
+    toast(`Importación exitosa: ${data.importados} registros`);
+  } catch(e) {
+    document.getElementById(resultId).innerHTML = `
+      <div style="margin-top:12px;padding:14px;background:var(--encima-bg);border:1px solid var(--encima);border-radius:8px;font-size:13px;">
+        ❌ Error: ${e.message}
+      </div>`;
+    toast(e.message, 'error');
+  }
+  input.value = '';
+}
+
+function exportarAnalisis() {
+  toast('Preparando exportación...');
+  window.open(`${API}/api/exportar/analisis`, '_blank');
+}
+
+function exportarAnalisisFiltered() {
+  const params = new URLSearchParams();
+  const estado = document.getElementById('filter-estado')?.value;
+  const buscar = document.getElementById('search-analisis')?.value;
+  if (estado) params.set('estado', estado);
+  if (buscar) params.set('buscar', buscar);
+  const qs = params.toString();
+  toast('Preparando exportación...');
+  window.open(`${API}/api/exportar/analisis${qs ? '?' + qs : ''}`, '_blank');
+}
+
+function descargarPlantilla(tipo) {
+  window.open(`${API}/api/exportar/${tipo}`, '_blank');
+}
+
+function modalAgregarPrecio(productoId, productoNombre) {
+  api('/api/competidores').then(c => {
+    state.competidores = c;
+    openModal(`
+      <div class="modal-title">Agregar Precio Competencia</div>
+      <div style="color:var(--text-muted);font-size:13px;margin-bottom:16px">Producto: <b style="color:var(--text)">${productoNombre}</b></div>
+      <div class="form-grid">
+        <div class="form-group span2"><label>Competidor *</label>
+          <select id="pc-comp">
+            <option value="">Seleccionar...</option>
+            ${c.map(x => `<option value="${x.id}">${x.nombre}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group"><label>Precio *</label><input id="pc-precio" type="number" step="0.01" placeholder="0.00"></div>
+        <div class="form-group"><label>Fecha</label><input id="pc-fecha" type="date" value="${new Date().toISOString().split('T')[0]}"></div>
+        <div class="form-group span2"><label>URL del producto</label><input id="pc-url" placeholder="https://..."></div>
+        <div class="form-group span2"><label>Notas</label><input id="pc-notas" placeholder="Observaciones opcionales"></div>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-secondary" onclick="closeModal()">Cancelar</button>
+        <button class="btn btn-primary" onclick="guardarPrecioComp(${productoId})">💾 Guardar</button>
+      </div>`);
+  });
+}
+
+async function guardarPrecioComp(productoId) {
+  const data = {
+    producto_id: productoId,
+    competidor_id: parseInt(document.getElementById('pc-comp').value),
+    precio: parseFloat(document.getElementById('pc-precio').value),
+    fecha_registro: document.getElementById('pc-fecha').value || null,
+    url_producto: document.getElementById('pc-url').value || null,
+    notas: document.getElementById('pc-notas').value || null
+  };
+  if (!data.competidor_id || !data.precio) { toast('Completa los campos requeridos', 'error'); return; }
+  try { await api('/api/precios-competencia', {method:'POST', body:JSON.stringify(data)}); toast('Precio registrado ✓'); closeModal(); }
+  catch(e) { toast(e.message, 'error'); }
+}
+
+renderDashboard();
+</script>
+</body>
+</html>
