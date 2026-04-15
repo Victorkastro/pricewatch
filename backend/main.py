@@ -321,10 +321,27 @@ def agregar_precio(precio: PrecioCompetenciaCreate, db=Depends(get_db)):
     datos = precio.model_dump()
     if not datos.get("fecha_registro"):
         datos["fecha_registro"] = date.today()
-    db.execute(text("""
-        INSERT INTO precios_competencia (producto_id, competidor_id, precio, url_producto, fecha_registro, notas)
-        VALUES (:producto_id, :competidor_id, :precio, :url_producto, :fecha_registro, :notas)
-    """), datos)
+    
+    # Verificar si ya existe un precio para este producto+competidor+fecha
+    existing = db.execute(text("""
+        SELECT id FROM precios_competencia
+        WHERE producto_id = :producto_id AND competidor_id = :competidor_id AND fecha_registro = :fecha_registro
+    """), datos).scalar()
+    
+    if existing:
+        # Actualizar el precio existente
+        db.execute(text("""
+            UPDATE precios_competencia
+            SET precio = :precio, url_producto = :url_producto, notas = :notas
+            WHERE id = :id
+        """), {**datos, "id": existing})
+    else:
+        # Insertar nuevo precio
+        db.execute(text("""
+            INSERT INTO precios_competencia (producto_id, competidor_id, precio, url_producto, fecha_registro, notas)
+            VALUES (:producto_id, :competidor_id, :precio, :url_producto, :fecha_registro, :notas)
+        """), datos)
+    
     db.commit()
     return {"message": "Precio registrado"}
 
@@ -452,6 +469,7 @@ async def importar_competencia_excel(file: UploadFile = File(...), db=Depends(ge
     """Importar precios de competencia desde Excel.
     Columnas: codigo_producto, competidor, precio
     Opcionales: fecha, url_producto, notas
+    Si ya existe un precio para el mismo producto+competidor+fecha, se ACTUALIZA en vez de duplicar.
     """
     if not file.filename.endswith((".xlsx", ".xls")):
         raise HTTPException(400, "Solo se aceptan archivos Excel (.xlsx o .xls)")
@@ -467,7 +485,7 @@ async def importar_competencia_excel(file: UploadFile = File(...), db=Depends(ge
     if not required.issubset(set(df.columns)):
         raise HTTPException(400, f"Columnas requeridas: {required}. Encontradas: {set(df.columns)}")
 
-    ok, errors = 0, 0
+    ok, errors, actualizados = 0, 0, 0
     for _, row in df.iterrows():
         try:
             prod_id = db.execute(text("SELECT id FROM nuestros_productos WHERE codigo=:c"),
@@ -492,15 +510,33 @@ async def importar_competencia_excel(file: UploadFile = File(...), db=Depends(ge
                 except Exception:
                     pass
 
-            db.execute(text("""
-                INSERT INTO precios_competencia (producto_id, competidor_id, precio, fecha_registro, url_producto, notas)
-                VALUES (:pid, :cid, :p, :f, :url, :notas)
-            """), {
-                "pid": prod_id, "cid": comp_id, "p": float(row["precio"]),
-                "f": fecha,
-                "url": str(row["url_producto"]) if "url_producto" in df.columns and pd.notna(row.get("url_producto")) else None,
-                "notas": str(row["notas"]) if "notas" in df.columns and pd.notna(row.get("notas")) else None
-            })
+            url = str(row["url_producto"]) if "url_producto" in df.columns and pd.notna(row.get("url_producto")) else None
+            notas = str(row["notas"]) if "notas" in df.columns and pd.notna(row.get("notas")) else None
+
+            # Verificar si ya existe un precio para este producto+competidor+fecha
+            existing = db.execute(text("""
+                SELECT id FROM precios_competencia
+                WHERE producto_id = :pid AND competidor_id = :cid AND fecha_registro = :f
+            """), {"pid": prod_id, "cid": comp_id, "f": fecha}).scalar()
+
+            if existing:
+                # Actualizar el precio existente
+                db.execute(text("""
+                    UPDATE precios_competencia
+                    SET precio = :p, url_producto = :url, notas = :notas
+                    WHERE id = :id
+                """), {"p": float(row["precio"]), "url": url, "notas": notas, "id": existing})
+                actualizados += 1
+            else:
+                # Insertar nuevo precio
+                db.execute(text("""
+                    INSERT INTO precios_competencia (producto_id, competidor_id, precio, fecha_registro, url_producto, notas)
+                    VALUES (:pid, :cid, :p, :f, :url, :notas)
+                """), {
+                    "pid": prod_id, "cid": comp_id, "p": float(row["precio"]),
+                    "f": fecha, "url": url, "notas": notas
+                })
+
             db.commit()
             ok += 1
         except Exception:
@@ -511,7 +547,7 @@ async def importar_competencia_excel(file: UploadFile = File(...), db=Depends(ge
         VALUES (:f, 'competencia', :ok, :err)
     """), {"f": file.filename, "ok": ok, "err": errors})
     db.commit()
-    return {"importados": ok, "errores": errors, "archivo": file.filename}
+    return {"importados": ok, "actualizados": actualizados, "errores": errors, "archivo": file.filename}
 
 # ── Exportar Excel ────────────────────────────────────────────────────────────
 @app.get("/api/exportar/analisis")
