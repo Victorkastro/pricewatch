@@ -1,0 +1,42 @@
+# render.yaml — Blueprint para despliegue automático en Render.com
+# Instrucciones: 
+# 1. Sube este proyecto a GitHub
+# 2. Ve a https://render.com/deploy y pega el link de tu repo
+# 3. Render creará todo automáticamente
+
+databases:
+  - name: pricewatch-db
+    plan: free
+    databaseName: pricedb
+    user: priceuser
+
+services:
+  - type: web
+    name: pricewatch-api
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: pricewatch-db
+          property: connectionURI
+    healthCheckPath: /health
+
+  - type: web
+    name: pricewatch-frontend
+    runtime: static
+    plan: free
+    rootDir: frontend
+    buildCommand: echo "No build needed"
+    staticPublishPath: .
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: no-cache
+    routes:
+      - type: rewrite
+        source: /api/*
+        destination: https://pricewatch-api.onrender.com/api/*
